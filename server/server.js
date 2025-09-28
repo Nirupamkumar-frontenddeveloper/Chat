@@ -11,9 +11,18 @@ import { Server } from "socket.io";
 const app = express();
 const server = http.createServer(app);
 
+// ✅ Allowed origins (local + production)
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://chat-app-five-woad-70.vercel.app"
+];
+
 // Initialize Socket.IO server
 export const io = new Server(server, {
-  cors: { origin: "http://localhost:5173" }, // Restrict to frontend origin for development
+  cors: {
+    origin: allowedOrigins,
+    credentials: true,
+  },
 });
 
 // Store online users
@@ -25,6 +34,7 @@ io.on("connection", (socket) => {
   console.log("User Connected", userId);
 
   if (userId) userSocketMap[userId] = socket.id;
+
   // Emit online users
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
@@ -37,7 +47,18 @@ io.on("connection", (socket) => {
 
 // Middleware Setup
 app.use(express.json({ limit: "4mb" }));
-app.use(cors({ origin: "http://localhost:5173" })); // Match CORS with frontend
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
 
 // Route Setup
 app.use("/api/status", (req, res) => res.send("Server is Live"));
@@ -56,8 +77,9 @@ app.use("/api/messages", messageRouter);
 })();
 
 // Start the server
-if(process.env.NODE_ENV !== "production"){
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log("Server is running on PORT: " + PORT));
+if (process.env.NODE_ENV !== "production") {
+  const PORT = process.env.PORT || 5000;
+  server.listen(PORT, () => console.log("Server is running on PORT: " + PORT));
 }
+
 export default server;
